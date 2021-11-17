@@ -13,9 +13,44 @@ var storageAcctName = 'sa${environment}testfailover'
 
 // If prod, use global redundant storage otherwise use local redundant storage
 var saAcctType = 'Standard_LRS'
-var vmSize = 'Standard_D4s_v4'
+var vmSize = 'Standard_D2_v3'
 
 // resources
+
+resource vnet 'Microsoft.Network/virtualNetworks@2021-03-01' = {
+  name: 'failovervnet'
+  location: resourceGroup().location
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        '10.0.0.0/16'
+      ]
+    }
+    subnets: [
+      {
+        name: 'failoversubnet1'
+        properties: {
+          addressPrefix: '10.0.0.0/24'
+        }
+      }
+    ]
+  }
+}
+
+var dnsLabelPrefix = 'failoverdns-${uniqueString(resourceGroup().id)}'
+resource pubIp 'Microsoft.Network/publicIPAddresses@2021-03-01' = {
+  name: 'failover-publicip'
+  location: resourceGroup().location
+  sku: {
+    name: 'Basic'
+  }
+  properties: {
+    publicIPAllocationMethod: 'Dynamic'
+    dnsSettings: {
+      domainNameLabel: dnsLabelPrefix
+    }
+  }
+}
 
 
 resource nicvm 'Microsoft.Network/networkInterfaces@2020-05-01' = {
@@ -27,6 +62,10 @@ resource nicvm 'Microsoft.Network/networkInterfaces@2020-05-01' = {
         name: 'nic-config1'
         properties: {
           privateIPAllocationMethod: 'Dynamic'
+          publicIPAddress: {
+            id: pubIp.id
+          }
+          subnet: vnet.properties.subnets[0]
         }
       }
     ]
@@ -49,7 +88,7 @@ resource storageAcct 'Microsoft.Storage/storageAccounts@2019-06-01' = {
   tags: resourceTags
 }
 
-var vmName='testfailover${environment}'
+var vmName='testfail${environment}'
 resource vm 'Microsoft.Compute/virtualMachines@2020-12-01' = {
   name: vmName
   location: resourceGroup().location

@@ -31,7 +31,7 @@ module vm 'appserver.bicep' = {
 
 
 module sql 'sqlserver.bicep' = {
-  name: '5msSql'
+  name: 'TestFailoverSql'
   params: {
     resourceTags: tags
     serverName: sqlSrvName

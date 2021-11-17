@@ -1,0 +1,320 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.4.1008.15138",
+      "templateHash": "7767687055184696652"
+    }
+  },
+  "parameters": {
+    "vmAdminUsername": {
+      "type": "string"
+    },
+    "vmAdminPassword": {
+      "type": "secureString"
+    },
+    "sqlAdminUsername": {
+      "type": "string"
+    },
+    "sqlAdminPassword": {
+      "type": "secureString"
+    },
+    "expiresOn": {
+      "type": "string",
+      "defaultValue": "2021-11-17"
+    }
+  },
+  "functions": [],
+  "variables": {
+    "environment": "test",
+    "tags": {
+      "Environment": "[variables('environment')]",
+      "Usage": "personal-use",
+      "expiresOn": "[parameters('expiresOn')]"
+    },
+    "sqlDbName": "[format('sql-db-failovertest-{0}', variables('environment'))]",
+    "sqlSrvName": "[format('sql-srv-failovertest-{0}', variables('environment'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-06-01",
+      "name": "TestFailOverVM",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "environment": {
+            "value": "[variables('environment')]"
+          },
+          "vmAdminUsername": {
+            "value": "[parameters('vmAdminUsername')]"
+          },
+          "vmAdminPassword": {
+            "value": "[parameters('vmAdminPassword')]"
+          },
+          "resourceTags": {
+            "value": "[variables('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.4.1008.15138",
+              "templateHash": "13539919112504385998"
+            }
+          },
+          "parameters": {
+            "environment": {
+              "type": "string"
+            },
+            "resourceTags": {
+              "type": "object"
+            },
+            "vmAdminUsername": {
+              "type": "string",
+              "minLength": 5
+            },
+            "vmAdminPassword": {
+              "type": "secureString"
+            }
+          },
+          "functions": [],
+          "variables": {
+            "storageAcctName": "[format('sa{0}testfailover', parameters('environment'))]",
+            "saAcctType": "Standard_LRS",
+            "vmSize": "Standard_D4s_v4",
+            "vmName": "[format('testfailover{0}', parameters('environment'))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/networkInterfaces",
+              "apiVersion": "2020-05-01",
+              "name": "nic-testfailover",
+              "location": "[resourceGroup().location]",
+              "properties": {
+                "ipConfigurations": [
+                  {
+                    "name": "nic-config1",
+                    "properties": {
+                      "privateIPAllocationMethod": "Dynamic"
+                    }
+                  }
+                ]
+              },
+              "tags": "[parameters('resourceTags')]"
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2019-06-01",
+              "name": "[variables('storageAcctName')]",
+              "location": "[resourceGroup().location]",
+              "kind": "StorageV2",
+              "sku": {
+                "name": "[variables('saAcctType')]"
+              },
+              "properties": {
+                "allowBlobPublicAccess": false,
+                "supportsHttpsTrafficOnly": true,
+                "minimumTlsVersion": "TLS1_2"
+              },
+              "tags": "[parameters('resourceTags')]"
+            },
+            {
+              "type": "Microsoft.Compute/virtualMachines",
+              "apiVersion": "2020-12-01",
+              "name": "[variables('vmName')]",
+              "location": "[resourceGroup().location]",
+              "properties": {
+                "hardwareProfile": {
+                  "vmSize": "[variables('vmSize')]"
+                },
+                "osProfile": {
+                  "computerName": "[variables('vmName')]",
+                  "adminUsername": "[parameters('vmAdminUsername')]",
+                  "adminPassword": "[parameters('vmAdminPassword')]",
+                  "windowsConfiguration": {
+                    "provisionVMAgent": true,
+                    "enableAutomaticUpdates": false,
+                    "timeZone": "AUS Eastern Standard Time"
+                  }
+                },
+                "networkProfile": {
+                  "networkInterfaces": [
+                    {
+                      "id": "[resourceId('Microsoft.Network/networkInterfaces', 'nic-testfailover')]",
+                      "properties": {
+                        "primary": true
+                      }
+                    }
+                  ]
+                },
+                "storageProfile": {
+                  "imageReference": {
+                    "publisher": "MicrosoftWindowsServer",
+                    "offer": "WindowsServer",
+                    "sku": "2019-Datacenter",
+                    "version": "latest"
+                  },
+                  "osDisk": {
+                    "createOption": "FromImage",
+                    "managedDisk": {
+                      "storageAccountType": "Standard_LRS"
+                    }
+                  }
+                },
+                "diagnosticsProfile": {
+                  "bootDiagnostics": {
+                    "enabled": true,
+                    "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAcctName'))).primaryEndpoints.blob]"
+                  }
+                }
+              },
+              "tags": "[parameters('resourceTags')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', 'nic-testfailover')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAcctName'))]"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-06-01",
+      "name": "TestFailoverSql",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "resourceTags": {
+            "value": "[variables('tags')]"
+          },
+          "serverName": {
+            "value": "[variables('sqlSrvName')]"
+          },
+          "databaseName": {
+            "value": "[variables('sqlDbName')]"
+          },
+          "environment": {
+            "value": "[variables('environment')]"
+          },
+          "adminPassword": {
+            "value": "[parameters('sqlAdminPassword')]"
+          },
+          "adminUsername": {
+            "value": "[parameters('sqlAdminUsername')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.4.1008.15138",
+              "templateHash": "1700453523234794900"
+            }
+          },
+          "parameters": {
+            "environment": {
+              "type": "string"
+            },
+            "resourceTags": {
+              "type": "object"
+            },
+            "serverName": {
+              "type": "string"
+            },
+            "databaseName": {
+              "type": "string"
+            },
+            "adminUsername": {
+              "type": "string",
+              "defaultValue": "failovertest"
+            },
+            "adminPassword": {
+              "type": "secureString"
+            }
+          },
+          "functions": [],
+          "variables": {
+            "storageAcctName": "[format('sa{0}failoversqlaudit', parameters('environment'))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2019-06-01",
+              "name": "[variables('storageAcctName')]",
+              "location": "[resourceGroup().location]",
+              "kind": "StorageV2",
+              "sku": {
+                "name": "Standard_LRS"
+              },
+              "properties": {
+                "allowBlobPublicAccess": false,
+                "supportsHttpsTrafficOnly": true,
+                "minimumTlsVersion": "TLS1_2"
+              },
+              "tags": "[parameters('resourceTags')]"
+            },
+            {
+              "type": "Microsoft.Sql/servers",
+              "apiVersion": "2019-06-01-preview",
+              "name": "[parameters('serverName')]",
+              "location": "[resourceGroup().location]",
+              "properties": {
+                "minimalTlsVersion": "1.2",
+                "administratorLogin": "[parameters('adminUsername')]",
+                "administratorLoginPassword": "[parameters('adminPassword')]"
+              },
+              "tags": "[parameters('resourceTags')]"
+            },
+            {
+              "type": "Microsoft.Sql/servers/databases",
+              "apiVersion": "2020-08-01-preview",
+              "name": "[format('{0}/{1}', parameters('serverName'), parameters('databaseName'))]",
+              "location": "[resourceGroup().location]",
+              "tags": "[parameters('resourceTags')]",
+              "sku": {
+                "name": "GP_S_Gen5_2",
+                "tier": "GeneralPurpose"
+              },
+              "properties": {
+                "collation": "SQL_Latin1_General_CP1_CI_AS",
+                "maxSizeBytes": 1677721600,
+                "zoneRedundant": false,
+                "catalogCollation": "SQL_Latin1_General_CP1_CI_AS",
+                "minCapacity": "0.5",
+                "autoPauseDelay": -1
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "sqlServerFullyQualifiedDomainName": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Sql/servers', parameters('serverName'))).fullyQualifiedDomainName]"
+            },
+            "sqlServerAdministratorLogin": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Sql/servers', parameters('serverName'))).administratorLogin]"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
